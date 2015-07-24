@@ -1,0 +1,109 @@
+---
+title: "Practical ML Project"
+author: "nkvasg"
+date: "Friday, July 24, 2015"
+output: html_document
+---
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit, it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+The data used in this project are from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+The goal of this project is to predict the manner in which the participants did the exercise. This is the "classe" variable in the training set. Also to find out if any variables are of more importance to be used in the predictions. This report will go through the process of exploring and cleaning the dataset and build the training model. It also includes the training model, the cross validation results, sample errors and the predicted results for the test dataset using the selected model.
+
+## Load the library
+
+```{r}
+library(caret)
+library(randomForest)
+
+```
+
+## Load data
+
+```{r}
+train_data <- read.csv("pml-training.csv")
+test_data <- read.csv("pml-testing.csv")
+dim(train_data)
+dim(test_data)
+head(train_data)
+head(test_data)
+
+```
+
+## Clean data
+
+
+```{r}
+train_data <- train_data[, colSums(is.na(train_data)) == 0]
+test_data <- test_data[, colSums(is.na(test_data)) == 0]
+
+classe <- train_data$classe
+train_rem <- grepl("^X|timestamp|window", names(train_data))
+train_data <- train_data[, !train_rem]
+train_cleaned <- train_data[, sapply(train_data, is.numeric)]
+train_cleaned$classe <- classe
+test_rem <- grepl("^X|timestamp|window", names(test_data))
+test_data <- test_data[, !test_rem]
+test_cleaned <- test_data[, sapply(test_data, is.numeric)]
+dim(train_cleaned)
+dim(test_cleaned)
+
+```
+
+## Produce train and test datasets, using 70% for training and 30% for cross validation
+
+```{r}
+set.seed(22519)
+trainIndex <- createDataPartition(train_cleaned$classe, p=0.7, list=F)
+train <- train_cleaned[trainIndex, ]
+test <- train_cleaned[-trainIndex, ]
+
+```
+
+## Modelling an Predicting
+
+The random forest algorithm is used because important variables can be automatically selected. 10-fold cross validation is used.
+
+```{r}
+rfmodel <- train(classe ~ ., data=train, method="rf", trControl=trainControl(method="cv", 10))
+rfmodel
+
+prediction <- predict(rfmodel, test)
+cm <- confusionMatrix(test$classe, prediction)
+error <- 1 - as.numeric(cm$overall[1])
+error
+
+```
+
+## Look at the important variables
+
+```{r}
+plot(varImp(rfmodel))
+
+```
+
+
+## Make predictions for the test set
+
+```{r}
+result <- predict(rfmodel, test_cleaned[, -length(names(test_cleaned))])
+result
+```
+
+## Write file
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(results)
+```
+
